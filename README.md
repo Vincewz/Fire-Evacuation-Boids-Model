@@ -31,6 +31,10 @@ Run the simulation with:
 python main.py
 ```
 
+```bash
+python main.py --record
+```
+
 ## Project Structure
 
 - `main.py`: Entry point of the simulation
