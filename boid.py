@@ -110,7 +110,7 @@ class Boid:
             ]
             pygame.draw.polygon(screen, BOID_COLOR, points)
             
-            # Draw debug info - exit points passed
-            font = pygame.font.Font(None, 20)
-            text = font.render(f"Exits: {self.exit_pass}", True, (255, 255, 255))
-            screen.blit(text, (self.position.x + 10, self.position.y + 10))
+            # # Draw debug info - exit points passed
+            # font = pygame.font.Font(None, 20)
+            # text = font.render(f"Exits: {self.exit_pass}", True, (255, 255, 255))
+            # screen.blit(text, (self.position.x + 10, self.position.y + 10))
