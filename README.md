@@ -1,47 +1,111 @@
-# Fire-Evacuation-Boids-Model
+# Fire Evacuation Boids Model
 
-## Features
+A Python simulation using the Boids algorithm to model crowd evacuation behavior through multiple rooms. The simulation uses pygame for visualization and implements a sequential exit system with configurable flow rates.
 
-- Boid flocking simulation with classic Reynolds rules:
-  - Alignment: Boids align their direction with nearby flockmates
-  - Cohesion: Boids move toward the center of nearby flockmates
-  - Separation: Boids avoid colliding with each other
-- Additional behaviors:
-  - Wall avoidance: Boids detect and avoid walls
-  - Sequential exit targeting: Boids must pass through exit points in a specific order
-  - Debug visualization showing completed exit points for each boid
 
 ## Requirements
 
-- Python 3.x
-- Pygame
+```bash
+python >= 3.8
+pygame >= 2.0.0
+opencv-python >= 4.0.0
+numpy >= 1.19.0
+```
 
 ## Installation
 
-1. Clone this repository
-2. Install the required dependency:
+1. Clone the repository:
 ```bash
-pip install pygame
+git clone https://github.com/yourusername/Fire-Evacuation-Boids-Model.git
+cd Fire-Evacuation-Boids-Model
+```
+
+2. Install required dependencies:
+```bash
+pip install pygame opencv-python numpy
 ```
 
 ## Usage
 
-Run the simulation with:
+Run the simulation:
 ```bash
 python main.py
 ```
 
-```bash
-python main.py --record
+### Controls
+- `ESC`: Exit simulation
+- `R`: Toggle video recording
+
+## Configuration
+
+All simulation parameters can be adjusted in `config.py`:
+
+### Room Layout
+```python
+ROOMS = {
+    1: {
+        "bounds": (x, y, width, height),
+        "spawn_area": (x, y, width, height),
+        "exits": [
+            {
+                "id": 1,
+                "to_room": 2,
+                "position": (x, y),
+                "flow_rate": boids_per_second,
+                "width": pixels
+            },
+            # ... additional exits
+        ]
+    },
+    # ... additional rooms
+}
+```
+
+### Boid Parameters
+```python
+NUM_BOIDS = 10
+BOID_RADIUS = 5
+ALIGNMENT_STRENGTH = 0.05
+COHESION_STRENGTH = 0.01
+SEPARATION_STRENGTH = 0.05
+WALL_AVOIDANCE_STRENGTH = 0.1
+EXIT_STRENGTH = 0.3
+MAX_SPEED = 3
+```
+
+### Exit Flow Control
+```python
+EXIT_QUEUE_MAX_SIZE = 5
+EXIT_PROCESSING_TIME = {
+    1: 1000,  # milliseconds per boid
+    2: 333,   # for 3 boids per second
+    # ... additional exit timings
+}
 ```
 
 ## Project Structure
 
 - `main.py`: Entry point of the simulation
-- `simulation.py`: Main simulation loop and visualization
-- `boid.py`: Boid class with flocking behavior implementation
-- `map_utils.py`: Environment management and collision detection
-- `config.py`: Configuration constants and parameters
+- `simulation.py`: Main simulation logic
+- `boid.py`: Boid class implementation
+- `map_utils.py`: Map and wall management
+- `exit_manager.py`: Exit and queue management
+- `config.py`: Configuration parameters
+
+## How It Works
+
+1. **Room System**: Each room is defined with specific boundaries and exit points.
+
+2. **Boid Behavior**: Boids follow three main rules:
+   - Alignment: Match velocity with nearby boids
+   - Cohesion: Move toward center of nearby boids
+   - Separation: Avoid getting too close to others
+
+3. **Exit System**: 
+   - Each exit has a maximum queue capacity
+   - Boids must wait their turn based on flow rate
+   - Controlled transition between rooms
+
 
 
 
