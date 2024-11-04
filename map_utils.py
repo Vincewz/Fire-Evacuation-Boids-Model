@@ -3,48 +3,48 @@ from config import *
 
 class Map:
     def __init__(self):
-        self.walls = WALL
-        self.exits = sorted(EXITS, key=lambda x: x["order"])
+        self.walls = WALLS
+        self.rooms = ROOMS
 
     def draw(self, screen):
+        # Draw rooms
+        for room_id, room in self.rooms.items():
+            bounds = room["bounds"]
+            pygame.draw.rect(screen, (50, 50, 50), pygame.Rect(*bounds), 1)
+            
+            # Draw exits for this room
+            for exit_info in room["exits"]:
+                pos = exit_info["position"]
+                width = exit_info["width"]
+                pygame.draw.circle(screen, EXIT_COLOR, pos, width//2, 1)
+
         # Draw walls
         for wall in self.walls:
             pygame.draw.rect(screen, WALL_COLOR, wall)
-            
-        # Draw exits
-        for idx, exit_info in enumerate(self.exits):
-            color = (0, 255 - idx * 50, 0)  # Different color for each exit
-            pygame.draw.circle(screen, color, exit_info["attraction_point"], 5)
-            
-            # Draw exit number
-            font = pygame.font.Font(None, 24)
-            text = font.render(str(exit_info["order"]), True, (255, 255, 255))
-            screen.blit(text, (exit_info["attraction_point"][0] - 5, 
-                              exit_info["attraction_point"][1] - 20))
-
-    def get_nearest_exit_point(self, position, exits_passed):
-        # Get next exit in sequence that hasn't been passed
-        for exit_info in self.exits:
-            if exit_info["id"] not in exits_passed:
-                return pygame.Vector2(exit_info["attraction_point"]), exit_info["id"]
-        return None, None
 
     def is_point_in_wall(self, point):
-        return any(wall.collidepoint(point) for wall in self.walls)
+        """Check if a point is inside any wall."""
+        if isinstance(point, pygame.Vector2):
+            return any(wall.collidepoint(int(point.x), int(point.y)) for wall in self.walls)
+        return any(wall.collidepoint(int(point[0]), int(point[1])) for wall in self.walls)
 
     def get_wall_avoidance_force(self, position):
+        """Calculate the force to avoid walls."""
         avoidance = pygame.Vector2(0, 0)
         pos = pygame.Vector2(position)
         
         for wall in self.walls:
+            # Find closest point on wall
             closest_x = max(wall.left, min(pos.x, wall.right))
             closest_y = max(wall.top, min(pos.y, wall.bottom))
             closest_point = pygame.Vector2(closest_x, closest_y)
             
+            # Calculate distance to wall
             distance = pos.distance_to(closest_point)
-            if distance < WALL_DETECTION_DISTANCE:
-                if distance > 0:
-                    force = (pos - closest_point) / distance
-                    avoidance += force * (1 - distance / WALL_DETECTION_DISTANCE)
+            
+            # If boid is close enough to wall, calculate avoidance force
+            if distance < WALL_DETECTION_DISTANCE and distance > 0:
+                force = (pos - closest_point) / distance
+                avoidance += force * (1 - distance / WALL_DETECTION_DISTANCE)
                 
         return avoidance

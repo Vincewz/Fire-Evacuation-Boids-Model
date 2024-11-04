@@ -4,113 +4,142 @@ import math
 from config import *
 
 class Boid:
-    def __init__(self, x, y, game_map):
+    def __init__(self, x, y, game_map, room_id=1):
         self.position = pygame.Vector2(x, y)
         angle = random.uniform(0, 2 * math.pi)
         self.velocity = pygame.Vector2(math.cos(angle), math.sin(angle)) * MAX_SPEED
         self.map = game_map
+        self.current_room = room_id
+        self.queued_at_exit = None
         self.exit_pass = []
-        self.current_target = None
-        self.current_target_id = None
-
-    def update(self, boids):
-        # Get next exit point and its ID
-        next_exit, next_exit_id = self.map.get_nearest_exit_point(self.position, self.exit_pass)
         
-        if next_exit:
-            # Update current target if it's new
-            if next_exit_id != self.current_target_id:
-                self.current_target = next_exit
-                self.current_target_id = next_exit_id
+    def get_visible_boids(self, boids):
+        visible = []
+        for boid in boids:
+            if boid != self:
+                distance = self.position.distance_to(boid.position)
+                if distance < VISION_RADIUS:
+                    visible.append(boid)
+        return visible
+        
+    def check_exit_collision(self, exit_manager):
+        if self.queued_at_exit:
+            return
             
-            # Calculate all forces
-            alignment = self.align(boids)
-            cohesion = self.cohere(boids)
-            separation = self.separate(boids)
-            attraction = self.attract_to_point(self.current_target)
-            wall_avoidance = self.map.get_wall_avoidance_force(self.position)
+        current_room = ROOMS[self.current_room]
+        for exit_info in current_room["exits"]:
+            exit_pos = pygame.Vector2(exit_info["position"])
+            # Check if within exit radius (using exit width)
+            if self.position.distance_to(exit_pos) < exit_info["width"] / 2:
+                # Check if moving towards exit
+                exit_direction = pygame.Vector2(exit_info["direction"])
+                if self.velocity.normalize().dot(exit_direction) > 0.5:
+                    if exit_manager.try_queue_boid(self, exit_info["id"]):
+                        self.queued_at_exit = exit_info["id"]
+                        break
+    
+    def update(self, boids, exit_manager):
+        # Si le boid est sorti ou en file d'attente, ne pas mettre à jour
+        if self.current_room is None or self.queued_at_exit:
+            return
 
-            # Check if boid has reached current exit
-            distance_to_exit = self.position.distance_to(self.current_target)
-            if distance_to_exit < EXIT_PASS_DISTANCE and self.current_target_id not in self.exit_pass:
-                self.exit_pass.append(self.current_target_id)
-                self.current_target = None
-                self.current_target_id = None
-
-            # Apply forces
-            self.velocity += (alignment * ALIGNMENT_STRENGTH +
-                            cohesion * COHESION_STRENGTH +
-                            separation * SEPARATION_STRENGTH +
-                            attraction * EXIT_STRENGTH +
-                            wall_avoidance * WALL_AVOIDANCE_STRENGTH)
-
-            # Limit speed
-            if self.velocity.length() > MAX_SPEED:
-                self.velocity.scale_to_length(MAX_SPEED)
-
-            # Update position if not in wall
-            new_position = self.position + self.velocity
-            if not self.map.is_point_in_wall((new_position.x, new_position.y)):
-                self.position = new_position
-
-    def align(self, boids):
+        # Filter visible boids from same room
+        visible_boids = [b for b in self.get_visible_boids(boids) 
+                        if b.current_room == self.current_room]
+        
+        # Calculate forces
+        alignment = self.align(visible_boids)
+        cohesion = self.cohere(visible_boids)
+        separation = self.separate(visible_boids)
+        wall_avoidance = self.map.get_wall_avoidance_force(self.position)
+        
+        # Find nearest exit in current room
+        current_room = ROOMS[self.current_room]
+        nearest_exit = None
+        min_distance = float('inf')
+        
+        for exit_info in current_room["exits"]:
+            exit_pos = pygame.Vector2(exit_info["position"])
+            dist = self.position.distance_to(exit_pos)
+            if dist < min_distance:
+                min_distance = dist
+                nearest_exit = exit_pos
+        
+        # Calculate exit attraction
+        exit_attraction = pygame.Vector2(0, 0)
+        if nearest_exit:
+            to_exit = nearest_exit - self.position
+            distance = to_exit.length()
+            if distance > 0:
+                # Force inversement proportionnelle à la distance
+                exit_attraction = to_exit.normalize() * EXIT_STRENGTH * (1 + VISION_RADIUS/max(distance, 1))
+        
+        # Apply all forces
+        self.velocity += (alignment * ALIGNMENT_STRENGTH +
+                        cohesion * COHESION_STRENGTH +
+                        separation * SEPARATION_STRENGTH +
+                        wall_avoidance * WALL_AVOIDANCE_STRENGTH +
+                        exit_attraction)
+        
+        # Limit speed
+        if self.velocity.length() > MAX_SPEED:
+            self.velocity.scale_to_length(MAX_SPEED)
+        
+        # Update position if not in wall
+        new_position = self.position + self.velocity
+        if not self.map.is_point_in_wall(new_position):
+            self.position = new_position
+            
+        # Check exit collisions
+        self.check_exit_collision(exit_manager)
+        
+    def align(self, visible_boids):
+        if not visible_boids:
+            return pygame.Vector2(0, 0)
         avg_velocity = pygame.Vector2(0, 0)
-        total = 0
-        for boid in boids:
-            if boid != self and self.position.distance_to(boid.position) < VISION_RADIUS:
-                avg_velocity += boid.velocity
-                total += 1
-        if total > 0:
-            avg_velocity /= total
-            avg_velocity = avg_velocity - self.velocity
-        return avg_velocity
-
-    def cohere(self, boids):
+        for boid in visible_boids:
+            avg_velocity += boid.velocity
+        avg_velocity /= len(visible_boids)
+        return avg_velocity - self.velocity
+        
+    def cohere(self, visible_boids):
+        if not visible_boids:
+            return pygame.Vector2(0, 0)
         center_of_mass = pygame.Vector2(0, 0)
-        total = 0
-        for boid in boids:
-            if boid != self and self.position.distance_to(boid.position) < VISION_RADIUS:
-                center_of_mass += boid.position
-                total += 1
-        if total > 0:
-            center_of_mass /= total
-            return (center_of_mass - self.position)
-        return pygame.Vector2(0, 0)
-
-    def separate(self, boids):
-        avoidance = pygame.Vector2(0, 0)
-        for boid in boids:
-            distance = self.position.distance_to(boid.position)
-            if boid != self and distance < BOID_RADIUS * 2:
-                diff = self.position - boid.position
-                if distance > 0:
-                    diff /= distance
-                avoidance += diff
-        return avoidance
-
-    def attract_to_point(self, target):
-        if isinstance(target, pygame.Vector2):
-            direction = target - self.position
-            if direction.length() > 0:
-                direction.normalize_ip()
-            return direction
-        return pygame.Vector2(0, 0)
-
+        for boid in visible_boids:
+            center_of_mass += boid.position
+        center_of_mass /= len(visible_boids)
+        return center_of_mass - self.position
+        
+    def separate(self, visible_boids):
+        if not visible_boids:
+            return pygame.Vector2(0, 0)
+        separation = pygame.Vector2(0, 0)
+        for boid in visible_boids:
+            diff = self.position - boid.position
+            distance = diff.length()
+            if distance < BOID_RADIUS * 4:  # Separation radius
+                if distance > 0:  # Avoid division by zero
+                    separation += diff.normalize() / distance
+        return separation
+        
     def draw(self, screen):
-        # Draw boid as triangle
+        # Ne pas dessiner les boids sortis
+        if self.current_room is None:
+            return
+            
+        # Calculate angle for triangle
         if self.velocity.length() > 0:
             angle = math.atan2(self.velocity.y, self.velocity.x)
             points = [
                 (self.position.x + BOID_RADIUS * math.cos(angle),
-                 self.position.y + BOID_RADIUS * math.sin(angle)),
+                self.position.y + BOID_RADIUS * math.sin(angle)),
                 (self.position.x + BOID_RADIUS * math.cos(angle + 2.6),
-                 self.position.y + BOID_RADIUS * math.sin(angle + 2.6)),
+                self.position.y + BOID_RADIUS * math.sin(angle + 2.6)),
                 (self.position.x + BOID_RADIUS * math.cos(angle - 2.6),
-                 self.position.y + BOID_RADIUS * math.sin(angle - 2.6))
+                self.position.y + BOID_RADIUS * math.sin(angle - 2.6))
             ]
-            pygame.draw.polygon(screen, BOID_COLOR, points)
             
-            # # Draw debug info - exit points passed
-            # font = pygame.font.Font(None, 20)
-            # text = font.render(f"Exits: {self.exit_pass}", True, (255, 255, 255))
-            # screen.blit(text, (self.position.x + 10, self.position.y + 10))
+            # Different color if queued at exit
+            color = (200, 100, 100) if self.queued_at_exit else BOID_COLOR
+            pygame.draw.polygon(screen, color, points)
