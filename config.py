@@ -1,81 +1,256 @@
 import pygame
+import pygame
+
+SMOKE_AVOIDANCE_RADIUS = 100  # Distance de détection de la fumée
+SMOKE_AVOIDANCE_STRENGTH = 1  # Force de l'évitement de la fumée
+SMOKE_DAMAGE_RATE = 50  # Dégâts par frame dans la fumée
+HEAT_DAMAGE_RATE = 70  # Dégâts par frame près du feu
 
 # Window configuration
-WIDTH, HEIGHT = 1200, 800
+WIDTH, HEIGHT = 1600, 1000
 BACKGROUND_COLOR = (30, 30, 30)
 WALL_COLOR = (100, 100, 100)
 EXIT_COLOR = (0, 255, 100)
 DOOR_COLOR = (200, 200, 0)
 
 # Boid parameters
-NUM_BOIDS = 25
+NUM_BOIDS = 100
 BOID_RADIUS = 5
 BOID_COLOR = (100, 200, 255)
 ALIGNMENT_STRENGTH = 0.05
 COHESION_STRENGTH = 0.01
 SEPARATION_STRENGTH = 0.1
 WALL_AVOIDANCE_STRENGTH = 0.1
-EXIT_STRENGTH = 0.3
+EXIT_STRENGTH = 0.8
 MAX_SPEED = 3
 VISION_RADIUS = 150
 WALL_DETECTION_DISTANCE = 30
 EXIT_PASS_DISTANCE = 10
 
+# Nouveaux paramètres pour le feu et la fumée
+SMOKE_DAMAGE_RATE = 0.1  # Dégâts par frame quand exposé à la fumée
+HEAT_DAMAGE_RATE = 0.2   # Dégâts par frame quand exposé à la chaleur
+HEALTH_RECOVERY_RATE = 0.05  # Taux de récupération de santé par frame
+FIRE_AVOIDANCE_RADIUS = 100  # Distance à laquelle les boids commencent à éviter le feu
+FIRE_AVOIDANCE_STRENGTH = 2.0  # Force de l'évitement du feu
+
+
 # Wall thickness
 WALL_THICKNESS = 10
 
+# Base coordinates for alignment
+BASE_X = 300
+BASE_Y = 100
+ROOM_HEIGHT = 200
+MAIN_ROOM_HEIGHT = 300
+ROOM_WIDTH = 200
+MAIN_ROOM_WIDTH = 400
+
 # Room definitions
 ROOMS = {
+    # Grande salle centrale
     1: {
-        "bounds": (100, 100, 400, 300),  # x, y, width, height
-        "spawn_area": (120, 120, 360, 260),  # Area where boids can spawn
+        "bounds": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT, MAIN_ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + 20, MAIN_ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
         "exits": [
             {
                 "id": 1,
                 "to_room": 2,
-                "position": (500, 150),
-                "spawn_point": (520, 150),  # Where boids appear in next room
-                "direction": (1, 0),  # Direction of the exit
-                "flow_rate": 1,  # Boids per second
-                "width": 30  # Exit width
+                "position": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH - 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+                "direction": (-1, 0),
+                "flow_rate": 2,
+                "width": 40
             },
             {
                 "id": 2,
                 "to_room": 3,
-                "position": (400, 400),
-                "spawn_point": (400, 420),
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+                "direction": (1, 0),
+                "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 3,
+                "to_room": 4,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT - 20),
+                "direction": (0, -1),
+                "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 4,
+                "to_room": 7,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20),
                 "direction": (0, 1),
                 "flow_rate": 2,
                 "width": 40
             }
         ]
     },
+    # Couloir Ouest
     2: {
-        "bounds": (500, 100, 300, 300),
-        "spawn_area": (520, 120, 260, 260),
+        "bounds": (BASE_X, BASE_Y + ROOM_HEIGHT, ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+        "spawn_area": (BASE_X + 20, BASE_Y + ROOM_HEIGHT + 20, ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
         "exits": [
             {
-                "id": 3,
-                "to_room": 3,
-                "position": (600, 400),
-                "spawn_point": (600, 420),
+                "id": 5,
+                "to_room": 5,
+                "position": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT - 20),
+                "direction": (0, -1),
+                "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 6,
+                "to_room": 6,
+                "position": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20),
                 "direction": (0, 1),
-                "flow_rate": 3,
-                "width": 50
+                "flow_rate": 2,
+                "width": 40
             }
         ]
     },
+    # Couloir Est
     3: {
-        "bounds": (100, 400, 800, 200),
-        "spawn_area": (120, 420, 760, 160),
+        "bounds": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT, ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + 20, ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
         "exits": [
             {
-                "id": 4,
-                "to_room": None,  # None indicates final exit
-                "position": (100, 500),
-                "spawn_point": None,
+                "id": 7,
+                "to_room": 8,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT - 20),
+                "direction": (0, -1),
+                "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 8,
+                "to_room": 9,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20),
+                "direction": (0, 1),
+                "flow_rate": 2,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Nord
+    4: {
+        "bounds": (BASE_X + ROOM_WIDTH, BASE_Y, MAIN_ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + 20, MAIN_ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 9,
+                "to_room": 5,
+                "position": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH - 20, BASE_Y + ROOM_HEIGHT//2),
                 "direction": (-1, 0),
                 "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 10,
+                "to_room": 8,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT//2),
+                "direction": (1, 0),
+                "flow_rate": 2,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Nord-Ouest
+    5: {
+        "bounds": (BASE_X, BASE_Y, ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + 20, BASE_Y + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 11,
+                "to_room": None,
+                "position": (BASE_X, BASE_Y + ROOM_HEIGHT//2),
+                "spawn_point": None,
+                "direction": (-1, 0),
+                "flow_rate": 3,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Sud-Ouest
+    6: {
+        "bounds": (BASE_X, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT, ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 12,
+                "to_room": None,
+                "position": (BASE_X, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "spawn_point": None,
+                "direction": (-1, 0),
+                "flow_rate": 3,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Sud
+    7: {
+        "bounds": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT, MAIN_ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20, MAIN_ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 13,
+                "to_room": 6,
+                "position": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH - 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "direction": (-1, 0),
+                "flow_rate": 2,
+                "width": 40
+            },
+            {
+                "id": 14,
+                "to_room": 9,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "direction": (1, 0),
+                "flow_rate": 2,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Nord-Est
+    8: {
+        "bounds": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y, ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 15,
+                "to_room": None,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT//2),
+                "spawn_point": None,
+                "direction": (1, 0),
+                "flow_rate": 3,
+                "width": 40
+            }
+        ]
+    },
+    # Salle Sud-Est
+    9: {
+        "bounds": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT, ROOM_WIDTH, ROOM_HEIGHT),
+        "spawn_area": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+        "exits": [
+            {
+                "id": 16,
+                "to_room": None,
+                "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+                "spawn_point": None,
+                "direction": (1, 0),
+                "flow_rate": 3,
                 "width": 40
             }
         ]
@@ -83,12 +258,9 @@ ROOMS = {
 }
 
 # Exit queues configuration
-EXIT_QUEUE_MAX_SIZE = 5  # Maximum number of boids that can wait at an exit
-EXIT_PROCESSING_TIME = {  # Time in milliseconds for a boid to pass through exit
-    1: 1000,  # 1 second per boid
-    2: 333,   # 3 boids per second
-    3: 500,   # 2 boids per second
-    4: 333    # 3 boids per second
+EXIT_QUEUE_MAX_SIZE = 5
+EXIT_PROCESSING_TIME = {
+    id: 500 for id in range(1, 17)  # 500ms (2 boids/sec) for all exits
 }
 
 # Generate walls based on room definitions
