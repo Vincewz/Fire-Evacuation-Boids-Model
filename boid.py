@@ -81,10 +81,15 @@ class Boid:
         return separation
 
     def get_smoke_avoidance_force(self, fire_manager):
-        """Calcule la force d'évitement de la fumée"""
+        """Calcule la force d'évitement de la fumée en tenant compte des murs"""
         avoidance = pygame.Vector2(0, 0)
         check_radius = SMOKE_AVOIDANCE_RADIUS
         check_points = 8  # Nombre de points à vérifier autour du boid
+        
+        # Vérifier si le boid est déjà dans la fumée
+        current_smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+        if current_smoke > 0.1:
+            return avoidance  # Pas de force d'évitement si déjà dans la fumée
         
         for i in range(check_points):
             angle = 2 * math.pi * i / check_points
@@ -93,36 +98,58 @@ class Boid:
                 math.sin(angle) * check_radius
             )
             
-            # Obtenir la concentration de fumée au point de vérification
-            smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
-            
-            if smoke > 0.1:  # Seuil de détection de la fumée
-                # Vecteur d'évitement pointant à l'opposé de la fumée
-                avoid_vector = self.position - check_pos
-                if avoid_vector.length() > 0:
-                    avoid_vector.normalize_ip()
-                    # Force proportionnelle à la concentration de fumée
-                    avoidance += avoid_vector * (smoke * SMOKE_AVOIDANCE_STRENGTH)
+            # Vérifier si un mur bloque la vue entre le boid et le point de vérification
+            if self.map.is_line_of_sight_clear(self.position, check_pos):
+                # Obtenir la concentration de fumée au point de vérification seulement si visible
+                smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
+                
+                if smoke > 0.1:  # Seuil de détection de la fumée
+                    # Vecteur d'évitement pointant à l'opposé de la fumée
+                    avoid_vector = self.position - check_pos
+                    if avoid_vector.length() > 0:
+                        avoid_vector.normalize_ip()
+                        # Force proportionnelle à la concentration de fumée
+                        avoidance += avoid_vector * (smoke * SMOKE_AVOIDANCE_STRENGTH)
         
         return avoidance
 
     def find_nearest_exit(self):
-        """Trouve la sortie la plus proche"""
+        """Trouve la sortie la plus appropriée basée sur l'orientation du boid"""
         if self.current_room is None:
             return None
             
         current_room = ROOMS[self.current_room]
-        nearest_exit = None
-        min_distance = float('inf')
+        best_exit = None
+        best_score = float('-inf')
+        
+        # Normaliser le vecteur de vélocité du boid
+        if self.velocity.length() > 0:
+            boid_direction = self.velocity.normalize()
+        else:
+            return None
         
         for exit_info in current_room["exits"]:
             exit_pos = pygame.Vector2(exit_info["position"])
-            dist = self.position.distance_to(exit_pos)
-            if dist < min_distance:
-                min_distance = dist
-                nearest_exit = exit_pos
+            
+            # Vecteur vers la sortie
+            to_exit = exit_pos - self.position
+            distance = to_exit.length()
+            if distance > 0:
+                to_exit = to_exit.normalize()
                 
-        return nearest_exit
+                # Calculer l'alignement entre la direction du boid et la direction vers la sortie
+                direction_alignment = boid_direction.dot(to_exit)
+                
+                # Le score favorise les sorties vers lesquelles le boid est orienté
+                # et pénalise légèrement la distance
+                score = direction_alignment * 2.0 - (distance / 1000.0)
+                
+                if score > best_score:
+                    best_score = score
+                    best_exit = exit_pos
+                    
+        return best_exit
+
 
     def check_exit_collision(self, exit_manager):
         """Vérifie les collisions avec les sorties"""
@@ -132,15 +159,30 @@ class Boid:
         current_room = ROOMS[self.current_room]
         for exit_info in current_room["exits"]:
             exit_pos = pygame.Vector2(exit_info["position"])
-            if self.position.distance_to(exit_pos) < exit_info["width"] / 2:
+            # Augmenter légèrement la zone de détection
+            detection_radius = exit_info["width"] * 0.75  # Zone de détection plus large
+            
+            if self.position.distance_to(exit_pos) < detection_radius:
+                # Vérifier si le boid se dirige approximativement vers la sortie
                 exit_direction = pygame.Vector2(exit_info["direction"])
-                if self.velocity.normalize().dot(exit_direction) > 0.5:
-                    if exit_manager.try_queue_boid(self, exit_info["id"]):
-                        self.queued_at_exit = exit_info["id"]
-                        break
+                to_exit = (exit_pos - self.position).normalize()
+                # Rendre la condition d'angle moins stricte
+                angle_threshold = 0.3  # Plus permissif que 0.5
+                
+                if to_exit.dot(exit_direction) > -angle_threshold:  # Le boid est face à la sortie
+                    # Essayer plusieurs fois d'ajouter le boid à la queue si nécessaire
+                    max_attempts = 3
+                    for _ in range(max_attempts):
+                        if exit_manager.try_queue_boid(self, exit_info["id"]):
+                            self.queued_at_exit = exit_info["id"]
+                            # Ajuster la position du boid pour qu'il soit exactement à la sortie
+                            self.position = exit_pos
+                            self.velocity *= 0  # Arrêter le mouvement
+                            return True
+        return False
         
     def update(self, boids, exit_manager, fire_manager=None):
-        """Mise à jour avec évitement de la fumée"""
+        """Mise à jour avec évitement de la fumée modifié"""
         if not self.is_alive or self.current_room is None or self.queued_at_exit:
             return
             

@@ -127,8 +127,7 @@ class SimulationRecorder:
             f"Active Boids: {alive_boids}",
             f"Escaped Boids: {self.escaped_boids}",
             f"Dead Boids: {self.dead_boids}",
-            f"Survival Rate: {((alive_boids + self.escaped_boids) / total_boids * 100):.1f}%",
-            f"Active Fires: {len(self.fire_manager.fire_sources)}"
+            f"Survival Rate: {((alive_boids + self.escaped_boids) / total_boids * 100):.1f}%"
         ]
         
         # Display statistics

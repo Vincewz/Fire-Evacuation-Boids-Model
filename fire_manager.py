@@ -1,42 +1,62 @@
 import numpy as np
-import pygame
+import pygame 
 import random
 from config import *
 
 class FireManager:
     def __init__(self, rooms):
         self.rooms = rooms
-        # Grille plus fine pour une meilleure simulation de fumée
         self.Nx = WIDTH // 4
         self.Ny = HEIGHT // 4
         self.dx = WIDTH / self.Nx
         self.dy = HEIGHT / self.Ny
-        self.dt = 2.0
-        self.D = 8.0  # Coefficient de diffusion augmenté pour compenser l'absence de vent
         
-        # Grilles
+        # Grille de fumée
         self.smoke_concentration = np.zeros((self.Ny, self.Nx))
-        self.temperature = np.zeros((self.Ny, self.Nx))
-        
-        # Création de la grille des murs
+        # Grille des murs (True = mur ou sortie extérieure, False = passage possible)
         self.wall_grid = np.zeros((self.Ny, self.Nx), dtype=bool)
-        self.init_wall_grid()
+        self.init_grids()
         
-        # Sources de feu fixes
-        self.fire_sources = []
+        # Point de départ du feu
+        self.fire_source = None
         self.init_first_fire()
+        
+        # Paramètres
+        self.propagation_chance = 0.3
+        self.smoke_increment = 0.2
+        self.dissipation_rate = 0.02
 
-    def init_wall_grid(self):
-        """Initialise la grille des murs pour la simulation de fumée"""
+    def init_grids(self):
+        """Initialise la grille des murs en laissant des passages uniquement aux portes intérieures"""
+        # D'abord marquer tous les murs
         for wall in WALLS:
             x1 = max(0, min(self.Nx - 1, int(wall.left / self.dx)))
             x2 = max(0, min(self.Nx - 1, int(wall.right / self.dx)))
             y1 = max(0, min(self.Ny - 1, int(wall.top / self.dy)))
             y2 = max(0, min(self.Ny - 1, int(wall.bottom / self.dy)))
             self.wall_grid[y1:y2+1, x1:x2+1] = True
+        
+        # Créer des passages uniquement aux portes intérieures
+        for room in self.rooms.values():
+            for exit_info in room["exits"]:
+                # Si c'est une sortie vers l'extérieur (to_room est None), ne pas créer de passage
+                if exit_info["to_room"] is None:
+                    continue
+                    
+                # Convertir la position de la porte en indices de grille
+                door_x = int(exit_info["position"][0] / self.dx)
+                door_y = int(exit_info["position"][1] / self.dy)
+                
+                # Créer une ouverture dans le mur
+                door_width = max(1, int(exit_info["width"] / (2 * self.dx)))
+                for dx in range(-door_width, door_width + 1):
+                    for dy in range(-door_width, door_width + 1):
+                        grid_x = door_x + dx
+                        grid_y = door_y + dy
+                        if 0 <= grid_x < self.Nx and 0 <= grid_y < self.Ny:
+                            self.wall_grid[grid_y, grid_x] = False
 
     def init_first_fire(self):
-        """Initialise un feu dans une position aléatoire"""
         room_id = random.choice(list(self.rooms.keys()))
         room = self.rooms[room_id]
         
@@ -44,66 +64,43 @@ class FireManager:
         x = random.randint(bounds[0], bounds[0] + bounds[2])
         y = random.randint(bounds[1], bounds[1] + bounds[3])
         
-        grid_x = int(x / self.dx)
-        grid_y = int(y / self.dy)
-        
-        self.fire_sources.append((grid_x, grid_y, 2.0, 0))
-
-    def add_fire_smoke(self):
-        """Ajoute de la fumée pour chaque source de feu"""
-        radius = 4
-        for fire_x, fire_y, strength, _ in self.fire_sources:
-            for i in range(fire_x-radius, fire_x+radius+1):
-                for j in range(fire_y-radius, fire_y+radius+1):
-                    if 0 <= i < self.Nx and 0 <= j < self.Ny and not self.wall_grid[j,i]:
-                        dist = np.sqrt((i-fire_x)**2 + (j-fire_y)**2)
-                        if dist < radius:
-                            self.smoke_concentration[j,i] = min(1.0, 
-                                self.smoke_concentration[j,i] + strength * (1 - dist/radius))
-                            self.temperature[j,i] = strength
+        self.fire_source = (int(x / self.dx), int(y / self.dy))
+        self.smoke_concentration[self.fire_source[1], self.fire_source[0]] = 1.0
 
     def update(self):
-        """Met à jour la simulation de fumée - diffusion uniquement"""
-        self.add_fire_smoke()
+        new_smoke = np.copy(self.smoke_concentration)
         
-        # Diffusion de la fumée
-        smoke_new = np.copy(self.smoke_concentration)
+        # Ajouter constamment de la fumée à la source
+        if self.fire_source:
+            new_smoke[self.fire_source[1], self.fire_source[0]] = 1.0
         
+        # Propager la fumée
         for i in range(1, self.Nx-1):
             for j in range(1, self.Ny-1):
                 if self.wall_grid[j,i]:
-                    smoke_new[j,i] = 0
+                    new_smoke[j,i] = 0
                     continue
+                
+                if self.smoke_concentration[j,i] > 0.1:
+                    # Directions possibles de propagation
+                    directions = [(0,1), (0,-1), (1,0), (-1,0)]
                     
-                # Vérifier les murs voisins pour la diffusion
-                can_diffuse_left = not self.wall_grid[j,i-1]
-                can_diffuse_right = not self.wall_grid[j,i+1]
-                can_diffuse_up = not self.wall_grid[j-1,i]
-                can_diffuse_down = not self.wall_grid[j+1,i]
+                    for dx, dy in directions:
+                        new_x, new_y = i + dx, j + dy
+                        
+                        if (0 <= new_x < self.Nx and 0 <= new_y < self.Ny 
+                            and not self.wall_grid[new_y,new_x]):
+                            
+                            if random.random() < self.propagation_chance:
+                                new_value = min(1.0, new_smoke[new_y,new_x] + self.smoke_increment)
+                                new_smoke[new_y,new_x] = new_value
                 
-                # Diffusion (propagation naturelle)
-                diff_x = diff_y = 0
-                if can_diffuse_left and can_diffuse_right:
-                    diff_x = self.D * (self.smoke_concentration[j,i+1] - 2*self.smoke_concentration[j,i] + 
-                                     self.smoke_concentration[j,i-1])/self.dx**2
-                if can_diffuse_up and can_diffuse_down:
-                    diff_y = self.D * (self.smoke_concentration[j+1,i] - 2*self.smoke_concentration[j,i] + 
-                                     self.smoke_concentration[j-1,i])/self.dy**2
-                
-                # Mise à jour avec la diffusion uniquement
-                smoke_new[j,i] = self.smoke_concentration[j,i] + self.dt * (diff_x + diff_y)
+                # Dissipation naturelle
+                new_smoke[j,i] = max(0, new_smoke[j,i] - self.dissipation_rate)
         
-        # Limiter les valeurs entre 0 et 1
-        self.smoke_concentration = np.clip(smoke_new, 0, 1)
-        
-        # Assurer que les murs restent sans fumée
-        self.smoke_concentration[self.wall_grid] = 0
-        
-        # Mise à jour de la température
-        self.temperature *= 0.98  # Refroidissement légèrement plus lent
+        self.smoke_concentration = new_smoke
 
     def get_smoke_at_position(self, x, y):
-        """Retourne la concentration de fumée à une position donnée"""
         grid_x = int(x / self.dx)
         grid_y = int(y / self.dy)
         if 0 <= grid_x < self.Nx and 0 <= grid_y < self.Ny:
@@ -111,56 +108,27 @@ class FireManager:
         return 0
 
     def get_temperature_at_position(self, x, y):
-        """Retourne la température à une position donnée"""
         grid_x = int(x / self.dx)
         grid_y = int(y / self.dy)
-        if 0 <= grid_x < self.Nx and 0 <= grid_y < self.Ny:
-            return self.temperature[grid_y, grid_x]
+        if (grid_x, grid_y) == self.fire_source:
+            return 1.0
         return 0
 
     def draw(self, screen):
-        """Dessine la fumée et le feu"""
-        # Surface pour la fumée avec transparence
         smoke_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         
-        # Dessiner la fumée
         for i in range(self.Nx):
             for j in range(self.Ny):
                 value = self.smoke_concentration[j,i]
-                temp = self.temperature[j,i]
-                if value > 0.01:  # Seuil minimum pour le rendu
-                    color = self.get_smoke_color(value, temp)
+                if value > 0.01:
+                    alpha = int(180 * value)
+                    color = (100, 100, 100, alpha)
                     pygame.draw.rect(smoke_surf, color,
                                    (i*self.dx, j*self.dy, self.dx+1, self.dy+1))
         
         screen.blit(smoke_surf, (0, 0))
         
-        # Dessiner les sources de feu
-        for fire_x, fire_y, strength, _ in self.fire_sources:
-            x = int(fire_x * self.dx)
-            y = int(fire_y * self.dy)
-            size = int(8 * strength)
-            pygame.draw.circle(screen, (255, 50, 0), (x, y), size)
-
-    def get_smoke_color(self, smoke_value, temp_value):
-        """Calcule la couleur de la fumée"""
-        if smoke_value < 0.01:
-            return (0, 0, 0, 0)
-        
-        smoke_value = min(0.95, smoke_value)
-        base_gray = 30
-        
-        if temp_value < 0.3:
-            intensity = base_gray + int(70 * smoke_value)
-            red = green = blue = intensity
-        else:
-            red = min(200, base_gray + int(150 * temp_value))
-            green = min(150, base_gray + int(80 * temp_value))
-            blue = base_gray
-
-        alpha = int(180 * (0.3 + 0.7 * smoke_value))
-        
-        return (max(20, min(200, red)),
-                max(20, min(200, green)),
-                max(20, min(200, blue)),
-                max(50, min(200, alpha)))
+        if self.fire_source:
+            x = int(self.fire_source[0] * self.dx)
+            y = int(self.fire_source[1] * self.dy)
+            pygame.draw.circle(screen, (255, 0, 0), (x, y), 5)
