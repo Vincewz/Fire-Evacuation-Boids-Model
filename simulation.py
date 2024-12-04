@@ -17,7 +17,6 @@ class SimulationRecorder:
         self.exit_manager = ExitManager(ROOMS)
         self.fire_manager = FireManager(ROOMS)
         self.boids = self.create_boids()
-        
         # Video recording setup
         self.is_recording = False
         self.video_writer = None
@@ -32,24 +31,24 @@ class SimulationRecorder:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.paused = False
-        
+
     def create_boids(self):
         boids = []
         boids_per_room = NUM_BOIDS // len(ROOMS)
         remaining_boids = NUM_BOIDS % len(ROOMS)
-        
+
         for room_id, room in ROOMS.items():
             num_room_boids = boids_per_room
             if remaining_boids > 0:
                 num_room_boids += 1
                 remaining_boids -= 1
-            
+
             spawn = room["spawn_area"]
             for _ in range(num_room_boids):
                 x = random.randint(spawn[0], spawn[0] + spawn[2])
                 y = random.randint(spawn[1], spawn[1] + spawn[3])
                 boids.append(Boid(x, y, self.map, room_id))
-                
+
         return boids
 
     def start_recording(self, filename='simulation_recording.mp4'):
@@ -92,7 +91,7 @@ class SimulationRecorder:
             
             # Update fire and smoke
             self.fire_manager.update()
-            
+
             # Update exit manager
             self.exit_manager.update(self.boids)
             
@@ -201,6 +200,8 @@ class SimulationRecorder:
             if self.is_recording:
                 self.stop_recording()
             pygame.quit()
+
+
 
 if __name__ == "__main__":
     sim = SimulationRecorder()

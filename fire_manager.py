@@ -2,6 +2,7 @@ import numpy as np
 import pygame
 import random
 from config import *
+import math
 
 class FireManager:
     def __init__(self, rooms):
@@ -104,6 +105,9 @@ class FireManager:
 
     def get_smoke_at_position(self, x, y):
         """Retourne la concentration de fumée à une position donnée"""
+        if math.isnan(x) or math.isnan(y):
+            return 0  # or some default value indicating invalid position
+
         grid_x = int(x / self.dx)
         grid_y = int(y / self.dy)
         if 0 <= grid_x < self.Nx and 0 <= grid_y < self.Ny:
@@ -112,6 +116,9 @@ class FireManager:
 
     def get_temperature_at_position(self, x, y):
         """Retourne la température à une position donnée"""
+        if math.isnan(x) or math.isnan(y):
+            return 0  # or some default value indicating invalid position
+
         grid_x = int(x / self.dx)
         grid_y = int(y / self.dy)
         if 0 <= grid_x < self.Nx and 0 <= grid_y < self.Ny:

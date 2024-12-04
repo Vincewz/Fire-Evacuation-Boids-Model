@@ -60,7 +60,7 @@ class ExitManager:
                 if exit_info["id"] == exit_id:
                     return exit_info
         return None
-        
+
     def update_boid_room(self, boid, exit_info):
         if exit_info:
             if exit_info["to_room"] is None:  # C'est une sortie finale

@@ -1,6 +1,6 @@
 import pygame
 from config import *
-
+import numpy as np
 class Map:
     def __init__(self):
         self.walls = WALLS
@@ -23,28 +23,34 @@ class Map:
             pygame.draw.rect(screen, WALL_COLOR, wall)
 
     def is_point_in_wall(self, point):
-        """Check if a point is inside any wall."""
-        if isinstance(point, pygame.Vector2):
-            return any(wall.collidepoint(int(point.x), int(point.y)) for wall in self.walls)
+        """Check if a point is inside any wall using NumPy."""
+        # Ensure point is a NumPy array
+        point = np.array(point, dtype=float)
+
+        # Check for NaN values in point
+        if np.any(np.isnan(point)):
+            return False
+
         return any(wall.collidepoint(int(point[0]), int(point[1])) for wall in self.walls)
 
     def get_wall_avoidance_force(self, position):
-        """Calculate the force to avoid walls."""
-        avoidance = pygame.Vector2(0, 0)
-        pos = pygame.Vector2(position)
-        
+        """Calculate the force to avoid walls using NumPy."""
+        avoidance = np.array([0.0, 0.0], dtype=float)
+        pos = np.array(position, dtype=float)
+
         for wall in self.walls:
-            # Find closest point on wall
-            closest_x = max(wall.left, min(pos.x, wall.right))
-            closest_y = max(wall.top, min(pos.y, wall.bottom))
-            closest_point = pygame.Vector2(closest_x, closest_y)
-            
-            # Calculate distance to wall
-            distance = pos.distance_to(closest_point)
-            
-            # If boid is close enough to wall, calculate avoidance force
+            # Find closest point on the wall using NumPy
+            closest_x = np.clip(pos[0], wall.left, wall.right)
+            closest_y = np.clip(pos[1], wall.top, wall.bottom)
+            closest_point = np.array([closest_x, closest_y], dtype=float)
+
+            # Calculate the distance to the closest point on the wall
+            distance = np.linalg.norm(pos - closest_point)
+
+            # If the boid is close enough to the wall, calculate the avoidance force
             if distance < WALL_DETECTION_DISTANCE and distance > 0:
+                # Calculate force vector (avoidance direction)
                 force = (pos - closest_point) / distance
                 avoidance += force * (1 - distance / WALL_DETECTION_DISTANCE)
-                
+
         return avoidance

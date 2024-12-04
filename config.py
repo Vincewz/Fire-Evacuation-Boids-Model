@@ -1,8 +1,8 @@
 import pygame
 import pygame
 
-SMOKE_AVOIDANCE_RADIUS = 100  # Distance de détection de la fumée
-SMOKE_AVOIDANCE_STRENGTH = 1  # Force de l'évitement de la fumée
+SMOKE_AVOIDANCE_RADIUS = 300  # Distance de détection de la fumée
+SMOKE_AVOIDANCE_STRENGTH = 2  # Force de l'évitement de la fumée
 SMOKE_DAMAGE_RATE = 50  # Dégâts par frame dans la fumée
 HEAT_DAMAGE_RATE = 70  # Dégâts par frame près du feu
 
@@ -21,7 +21,7 @@ ALIGNMENT_STRENGTH = 0.05
 COHESION_STRENGTH = 0.01
 SEPARATION_STRENGTH = 0.1
 WALL_AVOIDANCE_STRENGTH = 0.1
-EXIT_STRENGTH = 0.8
+EXIT_STRENGTH = 2
 MAX_SPEED = 3
 VISION_RADIUS = 150
 WALL_DETECTION_DISTANCE = 30
@@ -31,9 +31,8 @@ EXIT_PASS_DISTANCE = 10
 SMOKE_DAMAGE_RATE = 0.1  # Dégâts par frame quand exposé à la fumée
 HEAT_DAMAGE_RATE = 0.2   # Dégâts par frame quand exposé à la chaleur
 HEALTH_RECOVERY_RATE = 0.05  # Taux de récupération de santé par frame
-FIRE_AVOIDANCE_RADIUS = 100  # Distance à laquelle les boids commencent à éviter le feu
+FIRE_AVOIDANCE_RADIUS = 150  # Distance à laquelle les boids commencent à éviter le feu
 FIRE_AVOIDANCE_STRENGTH = 2.0  # Force de l'évitement du feu
-
 
 # Wall thickness
 WALL_THICKNESS = 10
