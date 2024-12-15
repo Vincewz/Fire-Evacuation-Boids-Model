@@ -82,7 +82,6 @@ class FireManager:
                     continue
                 
                 if self.smoke_concentration[j,i] > 0.1:
-                    # Directions possibles de propagation
                     directions = [(0,1), (0,-1), (1,0), (-1,0)]
                     
                     for dx, dy in directions:
@@ -95,7 +94,7 @@ class FireManager:
                                 new_value = min(1.0, new_smoke[new_y,new_x] + self.smoke_increment)
                                 new_smoke[new_y,new_x] = new_value
                 
-                # Dissipation naturelle
+                # natural dissipation
                 new_smoke[j,i] = max(0, new_smoke[j,i] - self.dissipation_rate)
         
         self.smoke_concentration = new_smoke
