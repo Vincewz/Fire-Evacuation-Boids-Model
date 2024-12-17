@@ -117,25 +117,32 @@ class Boid:
         return avoidance
     
     def update_boid_PR(self, fire_manager):
-        self.boid_PR = 0  
+        if self.boid_PR == 1:  #Once at 1, don't make the check again
+            return
     
-        check_radius = SMOKE_AVOIDANCE_RADIUS 
+        range_test = [SMOKE_AVOIDANCE_RADIUS * 1.5, SMOKE_AVOIDANCE_RADIUS, SMOKE_AVOIDANCE_RADIUS * 0.5]
         check_points = 8 
-    
-        for i in range(check_points):
-            angle = 2 * math.pi * i / check_points  # Angles uniformément répartis
-            check_pos = self.position + pygame.Vector2(
-                math.cos(angle) * check_radius,
-                math.sin(angle) * check_radius
-            )
+        slf_smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+
+        if slf_smoke > 0.1 : # try on the boids position
+            self.boid_PR = 1
+            return
+
+        for range_test in range_test : 
+            for i in range(check_points):
+                angle = 2 * math.pi * i / check_points  
+                check_pos = self.position + pygame.Vector2(
+                    math.cos(angle) * range_test,
+                    math.sin(angle) * range_test
+                )
         
-            # Vérifier si la ligne de vue est dégagée
-            if self.map.is_line_of_sight_clear(self.position, check_pos):
-                smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
+            # check for wall
+                if self.map.is_line_of_sight_clear(self.position, check_pos):
+                    smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
             
-                if smoke > 0.1:  
-                    self.boid_PR = 1 
-                    return  
+                    if smoke > 0.1:  
+                     self.boid_PR = 1 
+                     return  
 
     def find_nearest_exit(self):
         """Trouve la sortie la plus appropriée basée sur l'orientation du boid"""
@@ -258,6 +265,10 @@ class Boid:
         
         # Limiter la vitesse
         current_speed = self.base_speed
+
+        if self.boid_PR == 0:
+            current_speed *= 0.5
+
         if fire_manager:
             # Ralentissement dans la fumée
             smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
@@ -282,7 +293,9 @@ class Boid:
         if not self.is_alive or self.current_room is None:
             return
         
-
+        indicator_color = (0, 255, 0) if self.boid_PR == 0 else (255, 0, 0)
+        indicator_position = (self.position.x, self.position.y - BOID_RADIUS - 8)
+        pygame.draw.circle(screen, indicator_color, indicator_position, 4)
             
         if self.velocity.length() > 0:
             angle = math.atan2(self.velocity.y, self.velocity.x)
@@ -319,3 +332,4 @@ class Boid:
             # Barre verte (santé restante)
             pygame.draw.rect(screen, (0, 255, 0),
                            (health_x, health_y, health_width * (self.health/100), health_height))
+            
