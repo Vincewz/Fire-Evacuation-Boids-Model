@@ -12,6 +12,9 @@ class Boid:
         self.current_room = room_id
         self.queued_at_exit = None
         self.exit_pass = []
+
+        #Percived risk
+        self.boid_PR = 0
         
         # État de santé
         self.health = 100.0
@@ -112,6 +115,27 @@ class Boid:
                         avoidance += avoid_vector * (smoke * SMOKE_AVOIDANCE_STRENGTH)
         
         return avoidance
+    
+    def update_boid_PR(self, fire_manager):
+        self.boid_PR = 0  
+    
+        check_radius = SMOKE_AVOIDANCE_RADIUS 
+        check_points = 8 
+    
+        for i in range(check_points):
+            angle = 2 * math.pi * i / check_points  # Angles uniformément répartis
+            check_pos = self.position + pygame.Vector2(
+                math.cos(angle) * check_radius,
+                math.sin(angle) * check_radius
+            )
+        
+            # Vérifier si la ligne de vue est dégagée
+            if self.map.is_line_of_sight_clear(self.position, check_pos):
+                smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
+            
+                if smoke > 0.1:  
+                    self.boid_PR = 1 
+                    return  
 
     def find_nearest_exit(self):
         """Trouve la sortie la plus appropriée basée sur l'orientation du boid"""
@@ -186,11 +210,12 @@ class Boid:
         if not self.is_alive or self.current_room is None or self.queued_at_exit:
             return
             
-        # Mise à jour de la santé
+        # Mise à jour de la santé et des percived risk
         if fire_manager:
             smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
             temp = fire_manager.get_temperature_at_position(self.position.x, self.position.y)
             self.update_health(smoke, temp)
+            self.update_boid_PR(fire_manager)
             
         # Forces de base
         visible_boids = [b for b in self.get_visible_boids(boids) 
@@ -206,17 +231,20 @@ class Boid:
         if fire_manager:
             smoke_avoidance = self.get_smoke_avoidance_force(fire_manager)
         
+        exit_attraction = pygame.Vector2(0, 0)#def of the attraction 
+
         # Force vers la sortie (plus forte en présence de fumée)
-        nearest_exit = self.find_nearest_exit()
-        exit_attraction = pygame.Vector2(0, 0)
-        if nearest_exit:
-            to_exit = nearest_exit - self.position
-            if to_exit.length() > 0:
-                exit_attraction = to_exit.normalize() * EXIT_STRENGTH
-                # Augmenter l'attraction vers la sortie si il y a de la fumée
-                if fire_manager:
-                    smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-                    exit_attraction *= (1 + smoke * 2)
+        if self.boid_PR == 1:
+            nearest_exit = self.find_nearest_exit()
+            exit_attraction = pygame.Vector2(0, 0)
+            if nearest_exit:
+                to_exit = nearest_exit - self.position
+                if to_exit.length() > 0:
+                    exit_attraction = to_exit.normalize() * EXIT_STRENGTH
+                    # Augmenter l'attraction vers la sortie si il y a de la fumée
+                    if fire_manager:
+                        smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+                        exit_attraction *= (1 + smoke * 2)
         
         # Appliquer toutes les forces
         self.velocity += (
@@ -245,11 +273,16 @@ class Boid:
             
         # Vérification des sorties
         self.check_exit_collision(exit_manager)
+
+    
+
         
     def draw(self, screen):
         """Dessine le boid avec indication de santé"""
         if not self.is_alive or self.current_room is None:
             return
+        
+
             
         if self.velocity.length() > 0:
             angle = math.atan2(self.velocity.y, self.velocity.x)
