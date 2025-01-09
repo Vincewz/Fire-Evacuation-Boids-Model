@@ -8,10 +8,14 @@ class Boid:
         self.position = pygame.Vector2(x, y)
         angle = random.uniform(0, 2 * math.pi)
         self.velocity = pygame.Vector2(math.cos(angle), math.sin(angle)) * MAX_SPEED
+        self.last_direction = pygame.Vector2(self.velocity).normalize()
         self.map = game_map
         self.current_room = room_id
         self.queued_at_exit = None
         self.exit_pass = []
+
+        #Percived risk
+        self.boid_PR = 0
         
         # État de santé
         self.health = 100.0
@@ -112,6 +116,34 @@ class Boid:
                         avoidance += avoid_vector * (smoke * SMOKE_AVOIDANCE_STRENGTH)
         
         return avoidance
+    
+    def update_boid_PR(self, fire_manager):
+        if self.boid_PR == 1:  #Once at 1, don't make the check again
+            return
+    
+        range_test = [SMOKE_AVOIDANCE_RADIUS * 1.5, SMOKE_AVOIDANCE_RADIUS, SMOKE_AVOIDANCE_RADIUS * 0.5]
+        check_points = 8 
+        slf_smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+
+        if slf_smoke > 0.1 : # try on the boids position
+            self.boid_PR = 1
+            return
+
+        for range_test in range_test : 
+            for i in range(check_points):
+                angle = 2 * math.pi * i / check_points  
+                check_pos = self.position + pygame.Vector2(
+                    math.cos(angle) * range_test,
+                    math.sin(angle) * range_test
+                )
+        
+            # check for wall
+                if self.map.is_line_of_sight_clear(self.position, check_pos):
+                    smoke = fire_manager.get_smoke_at_position(check_pos.x, check_pos.y)
+            
+                    if smoke > 0.1:  
+                     self.boid_PR = 1 
+                     return  
 
     def find_nearest_exit(self):
         """Trouve la sortie la plus appropriée basée sur l'orientation du boid"""
@@ -186,58 +218,89 @@ class Boid:
         if not self.is_alive or self.current_room is None or self.queued_at_exit:
             return
             
-        # Mise à jour de la santé
+        # Mise à jour de la santé et des percived risk
         if fire_manager:
             smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
             temp = fire_manager.get_temperature_at_position(self.position.x, self.position.y)
             self.update_health(smoke, temp)
+            self.update_boid_PR(fire_manager)
+
+        is_stopped = False
+        changed_direction = False
+
+        #panic behaviour
+        if self.boid_PR == 1:
+            #stop
+            if random.random() < CHANCE_TO_STOP:
+                self.velocity *= 0
+                is_stopped = True
+
+            #random change of dierction
+            elif random.random() < CHANCE_TO_CHANGE_DIRECTION:
+                angle = random.uniform(0, 2 * math.pi)
+                self.velocity = pygame.Vector2( math.cos(angle), math.sin(angle)) * random.uniform(0.5, self.base_speed)
+                changed_direction = True
+                
+        if not is_stopped and not changed_direction:  
+            # Forces de base
+            visible_boids = [b for b in self.get_visible_boids(boids) 
+                            if b.current_room == self.current_room]
             
-        # Forces de base
-        visible_boids = [b for b in self.get_visible_boids(boids) 
-                        if b.current_room == self.current_room]
-        
-        alignment = self.align(visible_boids)
-        cohesion = self.cohere(visible_boids)
-        separation = self.separate(visible_boids)
-        wall_avoidance = self.map.get_wall_avoidance_force(self.position)
-        
-        # Force d'évitement de la fumée
-        smoke_avoidance = pygame.Vector2(0, 0)
-        if fire_manager:
-            smoke_avoidance = self.get_smoke_avoidance_force(fire_manager)
-        
-        # Force vers la sortie (plus forte en présence de fumée)
-        nearest_exit = self.find_nearest_exit()
-        exit_attraction = pygame.Vector2(0, 0)
-        if nearest_exit:
-            to_exit = nearest_exit - self.position
-            if to_exit.length() > 0:
-                exit_attraction = to_exit.normalize() * EXIT_STRENGTH
-                # Augmenter l'attraction vers la sortie si il y a de la fumée
-                if fire_manager:
-                    smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-                    exit_attraction *= (1 + smoke * 2)
-        
-        # Appliquer toutes les forces
-        self.velocity += (
-            alignment * ALIGNMENT_STRENGTH +
-            cohesion * COHESION_STRENGTH +
-            separation * SEPARATION_STRENGTH +
-            wall_avoidance * WALL_AVOIDANCE_STRENGTH +
-            smoke_avoidance +
-            exit_attraction
-        )
+            alignment = self.align(visible_boids)
+            cohesion = self.cohere(visible_boids)
+            separation = self.separate(visible_boids)
+            wall_avoidance = self.map.get_wall_avoidance_force(self.position)
+            
+            # Force d'évitement de la fumée
+            smoke_avoidance = pygame.Vector2(0, 0)
+            if fire_manager:
+                smoke_avoidance = self.get_smoke_avoidance_force(fire_manager)
+            
+            exit_attraction = pygame.Vector2(0, 0)#def of the attraction 
+
+            # Force vers la sortie (plus forte en présence de fumée)
+            if self.boid_PR == 1:
+                nearest_exit = self.find_nearest_exit()
+                exit_attraction = pygame.Vector2(0, 0)
+                if nearest_exit:
+                    to_exit = nearest_exit - self.position
+                    if to_exit.length() > 0:
+                        exit_attraction = to_exit.normalize() * EXIT_STRENGTH
+                        # Augmenter l'attraction vers la sortie si il y a de la fumée
+                        if fire_manager:
+                            smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+                            exit_attraction *= (1 + smoke * 2)
+            
+            # Appliquer toutes les forces
+            self.velocity += (
+                alignment * ALIGNMENT_STRENGTH +
+                cohesion * COHESION_STRENGTH +
+                separation * SEPARATION_STRENGTH +
+                wall_avoidance * WALL_AVOIDANCE_STRENGTH +
+                smoke_avoidance +
+                exit_attraction
+            )
         
         # Limiter la vitesse
         current_speed = self.base_speed
+
+        if self.boid_PR == 0:
+            current_speed *= 0.5
+
         if fire_manager:
             # Ralentissement dans la fumée
             smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-            current_speed *= (1 - smoke * 0.5)  # Jusqu'à 50% plus lent dans la fumée dense
+            current_speed *= (1 - smoke * SMOKE_SLOWDOWN_FACTOR) 
             
-        if self.velocity.length() > current_speed:
+        if not is_stopped and self.velocity.length() < 0.1:
+            self.velocity = pygame.Vector2(self.last_direction) * (current_speed * 0.5)
+        elif self.velocity.length() > current_speed:
             self.velocity.scale_to_length(current_speed)
-            
+        
+        #if boid moov save last direction
+        if self.velocity.length() > 0:  
+            self.last_direction = self.velocity.normalize()
+        
         # Mise à jour de la position
         new_position = self.position + self.velocity
         if not self.map.is_point_in_wall(new_position):
@@ -245,44 +308,58 @@ class Boid:
             
         # Vérification des sorties
         self.check_exit_collision(exit_manager)
+
+        
+
+    
+
         
     def draw(self, screen):
         """Dessine le boid avec indication de santé"""
         if not self.is_alive or self.current_room is None:
             return
+        
+        indicator_color = (0, 255, 0) if self.boid_PR == 0 else (255, 0, 0)
+        indicator_position = (self.position.x, self.position.y - BOID_RADIUS - 8)
+        pygame.draw.circle(screen, indicator_color, indicator_position, 4)
             
+        # Déterminer l'angle en fonction de la vélocité ou utiliser un angle par défaut
         if self.velocity.length() > 0:
             angle = math.atan2(self.velocity.y, self.velocity.x)
-            points = [
-                (self.position.x + BOID_RADIUS * math.cos(angle),
-                 self.position.y + BOID_RADIUS * math.sin(angle)),
-                (self.position.x + BOID_RADIUS * math.cos(angle + 2.6),
-                 self.position.y + BOID_RADIUS * math.sin(angle + 2.6)),
-                (self.position.x + BOID_RADIUS * math.cos(angle - 2.6),
-                 self.position.y + BOID_RADIUS * math.sin(angle - 2.6))
-            ]
+        else:
+            angle = math.atan2(self.last_direction.y, self.last_direction.x)
+        
+        points = [
+            (self.position.x + BOID_RADIUS * math.cos(angle),
+            self.position.y + BOID_RADIUS * math.sin(angle)),
+            (self.position.x + BOID_RADIUS * math.cos(angle + 2.6),
+            self.position.y + BOID_RADIUS * math.sin(angle + 2.6)),
+            (self.position.x + BOID_RADIUS * math.cos(angle - 2.6),
+            self.position.y + BOID_RADIUS * math.sin(angle - 2.6))
+        ]
+        
+        # Déterminer la couleur
+        if self.queued_at_exit:
+            color = (200, 100, 100)
+        else:
+            health_ratio = self.health / 100.0
+            red = int(255 * (1 - health_ratio))
+            green = int(255 * health_ratio)
+            blue = 50
+            color = (red, green, blue)
+        
+        pygame.draw.polygon(screen, color, points)
+        
+        # Barre de vie
+        health_width = 20
+        health_height = 3
+        health_x = self.position.x - health_width/2
+        health_y = self.position.y - BOID_RADIUS - 5
+        
+        # Fond rouge (santé manquante)
+        pygame.draw.rect(screen, (255, 0, 0),
+                        (health_x, health_y, health_width, health_height))
+        # Barre verte (santé restante)
+        pygame.draw.rect(screen, (0, 255, 0),
+                        (health_x, health_y, health_width * (self.health/100), health_height))
             
-            # Couleur basée sur la santé
-            if self.queued_at_exit:
-                color = (200, 100, 100)
-            else:
-                health_ratio = self.health / 100.0
-                red = int(255 * (1 - health_ratio))
-                green = int(255 * health_ratio)
-                blue = 50
-                color = (red, green, blue)
-            
-            pygame.draw.polygon(screen, color, points)
-            
-            # Barre de vie
-            health_width = 20
-            health_height = 3
-            health_x = self.position.x - health_width/2
-            health_y = self.position.y - BOID_RADIUS - 5
-            
-            # Fond rouge (santé manquante)
-            pygame.draw.rect(screen, (255, 0, 0),
-                           (health_x, health_y, health_width, health_height))
-            # Barre verte (santé restante)
-            pygame.draw.rect(screen, (0, 255, 0),
-                           (health_x, health_y, health_width * (self.health/100), health_height))
