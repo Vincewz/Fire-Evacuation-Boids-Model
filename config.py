@@ -13,7 +13,7 @@ EXIT_COLOR = (0, 255, 100)
 DOOR_COLOR = (200, 200, 0)
 
 # Boid parameters
-NUM_BOIDS = 1000
+NUM_BOIDS = 500
 BOID_RADIUS = 5
 BOID_COLOR = (100, 200, 255)
 ALIGNMENT_STRENGTH = 0.05
@@ -273,3 +273,229 @@ for room_id, room in ROOMS.items():
         pygame.Rect(x, y, WALL_THICKNESS, h),  # Left
         pygame.Rect(x + w, y, WALL_THICKNESS, h)  # Right
     ])
+
+# Définition des obstacles
+OBSTACLES = [
+    # Salle centrale
+    pygame.Rect(BASE_X + ROOM_WIDTH + 100, BASE_Y + ROOM_HEIGHT + 100, 30, 30),  # Petit carré
+    pygame.Rect(BASE_X + ROOM_WIDTH + 300, BASE_Y + ROOM_HEIGHT + 150, 50, 20),  # Rectangle horizontal
+    pygame.Rect(BASE_X + ROOM_WIDTH + 200, BASE_Y + ROOM_HEIGHT + 200, 20, 50),  # Rectangle vertical
+    
+    # Obstacles additionnels dans la salle centrale
+    pygame.Rect(BASE_X + ROOM_WIDTH + 150, BASE_Y + ROOM_HEIGHT + 50, 40, 40),   # Carré en haut
+    pygame.Rect(BASE_X + ROOM_WIDTH + 320, BASE_Y + ROOM_HEIGHT + 220, 60, 25),  # Rectangle en bas droite
+    
+    # Salle Nord (4)
+    pygame.Rect(BASE_X + ROOM_WIDTH + 150, BASE_Y + 20, 25, 60),  # Rectangle vertical
+    pygame.Rect(BASE_X + ROOM_WIDTH + 300, BASE_Y + 50, 60, 25),  # Rectangle horizontal
+    
+    # Salle Sud (7)
+    pygame.Rect(BASE_X + ROOM_WIDTH + 180, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 30, 30, 40),
+    pygame.Rect(BASE_X + ROOM_WIDTH + 280, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 70, 40, 30),
+    
+    # Couloir Ouest (2)
+    pygame.Rect(BASE_X + 20, BASE_Y + ROOM_HEIGHT + 150, 30, 80),
+    pygame.Rect(BASE_X + 120, BASE_Y + ROOM_HEIGHT + 250, 60, 25),
+    
+    # Couloir Est (3)
+    pygame.Rect(BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 50, BASE_Y + ROOM_HEIGHT + 100, 25, 60),
+    pygame.Rect(BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 100, BASE_Y + ROOM_HEIGHT + 200, 60, 25),
+    
+    # Salles périphériques
+    # Nord-Ouest (5)
+    pygame.Rect(BASE_X + 50, BASE_Y + 50, 40, 40),
+    
+    # Nord-Est (8)
+    pygame.Rect(BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 50, BASE_Y + 50, 40, 40),
+    
+    # Sud-Ouest (6)
+    pygame.Rect(BASE_X + 50, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 50, 40, 40),
+    
+    # Sud-Est (9)
+    pygame.Rect(BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 50, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 50, 40, 40)
+]
+
+# Ajouter les obstacles aux murs
+WALLS.extend(OBSTACLES)
+
+
+
+# # Configuration des murs et pièces
+# WALL_THICKNESS = 10
+# BASE_X = 300
+# BASE_Y = 100
+# ROOM_HEIGHT = 200
+# MAIN_ROOM_HEIGHT = 300
+# ROOM_WIDTH = 200
+# MAIN_ROOM_WIDTH = 400
+
+# ROOMS = {
+#     # Grande salle centrale (1)
+#     1: {
+#         "name": "Grande salle centrale",
+#         "type": "main",
+#         "bounds": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT, MAIN_ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + 20, MAIN_ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 1,
+#                 "to_room": 2,
+#                 "position": (BASE_X + ROOM_WIDTH + WALL_THICKNESS//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH - 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+#                 "direction": (-1, 0),
+#                 "flow_rate": 2,
+#                 "width": 40
+#             },
+#             {
+#                 "id": 3,
+#                 "to_room": 4,
+#                 "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + WALL_THICKNESS//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT - 20),
+#                 "direction": (0, -1),
+#                 "flow_rate": 2,
+#                 "width": 40
+#             },
+#             {
+#                 "id": 4,
+#                 "to_room": 7,
+#                 "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT - WALL_THICKNESS//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20),
+#                 "direction": (0, 1),
+#                 "flow_rate": 2,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Couloir Ouest (2)
+#     2: {
+#         "name": "Couloir Ouest",
+#         "type": "corridor",
+#         "bounds": (BASE_X, BASE_Y + ROOM_HEIGHT, ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + 20, BASE_Y + ROOM_HEIGHT + 20, ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 5,
+#                 "to_room": 5,
+#                 "position": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + WALL_THICKNESS//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT - 20),
+#                 "direction": (0, -1),
+#                 "flow_rate": 2,
+#                 "width": 40
+#             },
+#             {
+#                 "id": 6,
+#                 "to_room": 6,
+#                 "position": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT - WALL_THICKNESS//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20),
+#                 "direction": (0, 1),
+#                 "flow_rate": 2,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Couloir Est (3)
+#     3: {
+#         "name": "Couloir Est",
+#         "type": "corridor",
+#         "bounds": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH, BASE_Y + ROOM_HEIGHT, ROOM_WIDTH, MAIN_ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + 20, ROOM_WIDTH - 40, MAIN_ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 7,  # ID unique
+#                 "to_room": 1,
+#                 "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH - WALL_THICKNESS//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+#                 "spawn_point": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH - 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT//2),
+#                 "direction": (-1, 0),  # Vers la gauche pour rejoindre la salle centrale
+#                 "flow_rate": 2,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Salle Nord (4)
+#     4: {
+#         "name": "Salle Nord",
+#         "type": "room",
+#         "bounds": (BASE_X + ROOM_WIDTH, BASE_Y, MAIN_ROOM_WIDTH, ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + 20, MAIN_ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 8,
+#                 "to_room": None,
+#                 "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + WALL_THICKNESS//2),
+#                 "spawn_point": None,
+#                 "direction": (0, -1),
+#                 "flow_rate": 3,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Salle Nord-Ouest (5)
+#     5: {
+#         "name": "Salle Nord-Ouest",
+#         "type": "room",
+#         "bounds": (BASE_X, BASE_Y, ROOM_WIDTH, ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + 20, BASE_Y + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 9,
+#                 "to_room": None,
+#                 "position": (BASE_X + WALL_THICKNESS//2, BASE_Y + ROOM_HEIGHT//2),
+#                 "spawn_point": None,
+#                 "direction": (-1, 0),
+#                 "flow_rate": 3,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Salle Sud-Ouest (6)
+#     6: {
+#         "name": "Salle Sud-Ouest",
+#         "type": "room",
+#         "bounds": (BASE_X, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT, ROOM_WIDTH, ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20, ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 10,
+#                 "to_room": None,
+#                 "position": (BASE_X + WALL_THICKNESS//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT//2),
+#                 "spawn_point": None,
+#                 "direction": (-1, 0),
+#                 "flow_rate": 3,
+#                 "width": 40
+#             }
+#         ]
+#     },
+#     # Salle Sud (7)
+#     7: {
+#         "name": "Salle Sud",
+#         "type": "room",
+#         "bounds": (BASE_X + ROOM_WIDTH, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT, MAIN_ROOM_WIDTH, ROOM_HEIGHT),
+#         "spawn_area": (BASE_X + ROOM_WIDTH + 20, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + 20, MAIN_ROOM_WIDTH - 40, ROOM_HEIGHT - 40),
+#         "exits": [
+#             {
+#                 "id": 11,
+#                 "to_room": None,
+#                 "position": (BASE_X + ROOM_WIDTH + MAIN_ROOM_WIDTH//2, BASE_Y + ROOM_HEIGHT + MAIN_ROOM_HEIGHT + ROOM_HEIGHT - WALL_THICKNESS//2),
+#                 "spawn_point": None,
+#                 "direction": (0, 1),
+#                 "flow_rate": 3,
+#                 "width": 40
+#             }
+#         ]
+#     }
+# }
+
+# # Configuration des files d'attente des sorties
+# EXIT_QUEUE_MAX_SIZE = 5
+# EXIT_PROCESSING_TIME = {id: 500 for id in range(1, 12)}  # 500ms pour toutes les sorties
+
+# # Génération des murs basée sur les définitions des pièces
+# WALLS = []
+# for room_id, room in ROOMS.items():
+#     x, y, w, h = room["bounds"]
+#     WALLS.extend([
+#         pygame.Rect(x, y, w, WALL_THICKNESS),  # Haut
+#         pygame.Rect(x, y + h, w, WALL_THICKNESS),  # Bas
+#         pygame.Rect(x, y, WALL_THICKNESS, h),  # Gauche
+#         pygame.Rect(x + w, y, WALL_THICKNESS, h)  # Droite
+#     ])
