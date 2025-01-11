@@ -77,31 +77,52 @@ class Map:
         return False
 
     def get_wall_avoidance_force(self, position):
-        """Calculate the force to avoid walls using the grid"""
-        avoidance = pygame.Vector2(0, 0)
-        grid_x = int(position.x // self.grid_size)
-        grid_y = int(position.y // self.grid_size)
-        
-        check_radius = WALL_DETECTION_DISTANCE // self.grid_size
-        pos = pygame.Vector2(position)
-        
-        for dy in range(-check_radius, check_radius + 1):
-            for dx in range(-check_radius, check_radius + 1):
-                check_x = grid_x + dx
-                check_y = grid_y + dy
+            """Calculate the force to avoid walls using the grid and handle sliding"""
+            avoidance = pygame.Vector2(0, 0)
+            grid_x = int(position.x // self.grid_size)
+            grid_y = int(position.y // self.grid_size)
+            
+            check_radius = WALL_DETECTION_DISTANCE // self.grid_size
+            pos = pygame.Vector2(position)
+            
+            # Calculer la normale moyenne des murs proches
+            wall_normal = pygame.Vector2(0, 0)
+            wall_count = 0
+            
+            for dy in range(-check_radius, check_radius + 1):
+                for dx in range(-check_radius, check_radius + 1):
+                    check_x = grid_x + dx
+                    check_y = grid_y + dy
+                    
+                    if (0 <= check_x < self.grid_width and 
+                        0 <= check_y < self.grid_height and 
+                        self.wall_grid[check_y][check_x]):
+                        
+                        wall_center = pygame.Vector2(
+                            (check_x + 0.5) * self.grid_size,
+                            (check_y + 0.5) * self.grid_size
+                        )
+                        
+                        distance = pos.distance_to(wall_center)
+                        if 0 < distance < WALL_DETECTION_DISTANCE:
+                            # Calculer la normale du mur
+                            normal = (pos - wall_center).normalize()
+                            wall_normal += normal
+                            wall_count += 1
+                            
+                            # Force d'évitement diminuant avec la distance
+                            force = normal * (1 - distance / WALL_DETECTION_DISTANCE)
+                            avoidance += force
+            
+            if wall_count > 0:
+                # Normaliser la normale moyenne
+                wall_normal = wall_normal / wall_count
+                wall_normal.normalize_ip()
                 
-                if (0 <= check_x < self.grid_width and 
-                    0 <= check_y < self.grid_height and 
-                    self.wall_grid[check_y][check_x]):
-                    
-                    wall_center = pygame.Vector2(
-                        (check_x + 0.5) * self.grid_size,
-                        (check_y + 0.5) * self.grid_size
-                    )
-                    
-                    distance = pos.distance_to(wall_center)
-                    if 0 < distance < WALL_DETECTION_DISTANCE:
-                        force = (pos - wall_center) / distance
-                        avoidance += force * (1 - distance / WALL_DETECTION_DISTANCE)
-        
-        return avoidance
+                # Ajuster la force d'évitement pour favoriser le glissement
+                # en réduisant la composante parallèle au mur
+                parallel = pygame.Vector2(-wall_normal.y, wall_normal.x)
+                avoidance = (avoidance.dot(wall_normal) * wall_normal * 1.5 + 
+                            avoidance.dot(parallel) * parallel * 0.5)
+            
+            return avoidance

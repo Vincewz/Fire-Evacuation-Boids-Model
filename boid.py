@@ -182,69 +182,104 @@ class Boid:
         return False
         
     def update(self, boids, exit_manager, fire_manager=None):
-        """Mise à jour avec évitement de la fumée modifié"""
-        if not self.is_alive or self.current_room is None or self.queued_at_exit:
-            return
+            """Mise à jour avec évitement de la fumée modifié"""
+            if not self.is_alive or self.current_room is None or self.queued_at_exit:
+                return
+                
+            # Mise à jour de la santé
+            if fire_manager:
+                smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+                temp = fire_manager.get_temperature_at_position(self.position.x, self.position.y)
+                self.update_health(smoke, temp)
+                
+            # Forces de base
+            visible_boids = [b for b in self.get_visible_boids(boids) 
+                            if b.current_room == self.current_room]
             
-        # Mise à jour de la santé
-        if fire_manager:
-            smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-            temp = fire_manager.get_temperature_at_position(self.position.x, self.position.y)
-            self.update_health(smoke, temp)
+            alignment = self.align(visible_boids)
+            cohesion = self.cohere(visible_boids)
+            separation = self.separate(visible_boids)
+            wall_avoidance = self.map.get_wall_avoidance_force(self.position)
             
-        # Forces de base
-        visible_boids = [b for b in self.get_visible_boids(boids) 
-                        if b.current_room == self.current_room]
-        
-        alignment = self.align(visible_boids)
-        cohesion = self.cohere(visible_boids)
-        separation = self.separate(visible_boids)
-        wall_avoidance = self.map.get_wall_avoidance_force(self.position)
-        
-        # Force d'évitement de la fumée
-        smoke_avoidance = pygame.Vector2(0, 0)
-        if fire_manager:
-            smoke_avoidance = self.get_smoke_avoidance_force(fire_manager)
-        
-        # Force vers la sortie (plus forte en présence de fumée)
-        nearest_exit = self.find_nearest_exit()
-        exit_attraction = pygame.Vector2(0, 0)
-        if nearest_exit:
-            to_exit = nearest_exit - self.position
-            if to_exit.length() > 0:
-                exit_attraction = to_exit.normalize() * EXIT_STRENGTH
-                # Augmenter l'attraction vers la sortie si il y a de la fumée
-                if fire_manager:
-                    smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-                    exit_attraction *= (1 + smoke * 2)
-        
-        # Appliquer toutes les forces
-        self.velocity += (
-            alignment * ALIGNMENT_STRENGTH +
-            cohesion * COHESION_STRENGTH +
-            separation * SEPARATION_STRENGTH +
-            wall_avoidance * WALL_AVOIDANCE_STRENGTH +
-            smoke_avoidance +
-            exit_attraction
-        )
-        
-        # Limiter la vitesse
-        current_speed = self.base_speed
-        if fire_manager:
-            # Ralentissement dans la fumée
-            smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
-            current_speed *= (1 - smoke * 0.5)  # Jusqu'à 50% plus lent dans la fumée dense
+            # Force d'évitement de la fumée
+            smoke_avoidance = pygame.Vector2(0, 0)
+            if fire_manager:
+                smoke_avoidance = self.get_smoke_avoidance_force(fire_manager)
             
-        if self.velocity.length() > current_speed:
-            self.velocity.scale_to_length(current_speed)
+            # Force vers la sortie (plus forte en présence de fumée)
+            nearest_exit = self.find_nearest_exit()
+            exit_attraction = pygame.Vector2(0, 0)
+            if nearest_exit:
+                to_exit = nearest_exit - self.position
+                if to_exit.length() > 0:
+                    exit_attraction = to_exit.normalize() * EXIT_STRENGTH
+                    # Augmenter l'attraction vers la sortie si il y a de la fumée
+                    if fire_manager:
+                        smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+                        exit_attraction *= (1 + smoke * 2)
             
-        # Mise à jour de la position
-        new_position = self.position + self.velocity
-        if not self.map.is_point_in_wall(new_position):
-            self.position = new_position
+            # Appliquer toutes les forces
+            self.velocity += (
+                alignment * ALIGNMENT_STRENGTH +
+                cohesion * COHESION_STRENGTH +
+                separation * SEPARATION_STRENGTH +
+                wall_avoidance * WALL_AVOIDANCE_STRENGTH +
+                smoke_avoidance +
+                exit_attraction
+            )
             
-        # Vérification des sorties
-        self.check_exit_collision(exit_manager)
+            # Limiter la vitesse
+            current_speed = self.base_speed
+            if fire_manager:
+                # Ralentissement dans la fumée
+                smoke = fire_manager.get_smoke_at_position(self.position.x, self.position.y)
+                current_speed *= (1 - smoke * 0.5)  # Jusqu'à 50% plus lent dans la fumée dense
+                
+            if self.velocity.length() > current_speed:
+                self.velocity.scale_to_length(current_speed)
+                
+            # Mise à jour de la position avec glissement physique
+            new_position = self.position + self.velocity
+            if not self.map.is_point_in_wall(new_position):
+                self.position = new_position
+            else:
+                # Trouver la normale approximative du mur
+                wall_normal = pygame.Vector2(0, 0)
+                test_distance = 5  # Distance de test autour du point de collision
+                
+                # Tester points autour pour trouver la normale
+                test_points = [
+                    (1, 0), (-1, 0), (0, 1), (0, -1),
+                    (1, 1), (-1, 1), (1, -1), (-1, -1)
+                ]
+                
+                for dx, dy in test_points:
+                    test_pos = new_position + pygame.Vector2(dx * test_distance, dy * test_distance)
+                    if not self.map.is_point_in_wall(test_pos):
+                        wall_normal += pygame.Vector2(dx, dy)
+                
+                if wall_normal.length() > 0:
+                    wall_normal = wall_normal.normalize()
+                    
+                    # Calculer la vitesse de glissement
+                    # On projette la vitesse sur la tangente du mur
+                    wall_tangent = pygame.Vector2(-wall_normal.y, wall_normal.x)
+                    slide_velocity = wall_tangent * self.velocity.dot(wall_tangent)
+                    
+                    # Application du glissement avec une petite réduction de vitesse
+                    slide_velocity *= 0.8  # Réduction pour simuler la friction
+                    self.velocity = slide_velocity
+                    
+                    # On essaie de se déplacer avec la nouvelle vitesse
+                    new_slide_pos = self.position + slide_velocity
+                    if not self.map.is_point_in_wall(new_slide_pos):
+                        self.position = new_slide_pos
+                        
+                    # Ajout d'une petite force pour s'éloigner du mur
+                    self.velocity += wall_normal * 0.5
+                
+            # Vérification des sorties
+            self.check_exit_collision(exit_manager)
         
     def draw(self, screen):
         """Dessine le boid avec indication de santé"""
